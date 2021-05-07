@@ -10,13 +10,13 @@ import detectNewline from 'detect-newline';
 import os from 'os';
 import {
   NoteLinkDefinition,
-  Note,
-  NoteParser,
-  isWikilink,
-  getTitle,
+  Resource,
+  ResourceLink,
+  WikiLink,
+  ResourceParser,
 } from './model/note';
-import { Position, create as createPos } from './model/position';
-import { Range, create as createRange } from './model/range';
+import { Position } from './model/position';
+import { Range } from './model/range';
 import {
   dropExtension,
   extractHashtags,
@@ -24,11 +24,121 @@ import {
   isNone,
   isSome,
 } from './utils';
-import { computeRelativePath, getBasename, parseUri } from './utils/uri';
 import { ParserPlugin } from './plugins';
 import { Logger } from './utils/log';
-import { URI } from './common/uri';
+import { URI } from './model/uri';
 import { FoamWorkspace } from './model/workspace';
+import { ResourceProvider } from 'model/provider';
+import { IDataStore, FileDataStore, IMatcher } from './services/datastore';
+import { IDisposable } from 'common/lifecycle';
+
+export class MarkdownResourceProvider implements ResourceProvider {
+  private disposables: IDisposable[] = [];
+
+  constructor(
+    private readonly matcher: IMatcher,
+    private readonly watcherInit?: (triggers: {
+      onDidChange: (uri: URI) => void;
+      onDidCreate: (uri: URI) => void;
+      onDidDelete: (uri: URI) => void;
+    }) => IDisposable[],
+    private readonly parser: ResourceParser = createMarkdownParser([]),
+    private readonly dataStore: IDataStore = new FileDataStore()
+  ) {}
+
+  async init(workspace: FoamWorkspace) {
+    const filesByFolder = await Promise.all(
+      this.matcher.include.map(glob => this.dataStore.list(glob))
+    );
+    const files = this.matcher.match(filesByFolder.flat());
+
+    await Promise.all(
+      files.map(async uri => {
+        Logger.info('Found: ' + URI.toString(uri));
+        if (this.match(uri)) {
+          const content = await this.dataStore.read(uri);
+          if (isSome(content)) {
+            workspace.set(this.parser.parse(uri, content));
+          }
+        }
+      })
+    );
+
+    this.disposables =
+      this.watcherInit?.({
+        onDidChange: async uri => {
+          if (this.matcher.isMatch(uri)) {
+            const content = await this.dataStore.read(uri);
+            isSome(content) &&
+              workspace.set(await this.parser.parse(uri, content));
+          }
+        },
+        onDidCreate: async uri => {
+          if (this.matcher.isMatch(uri)) {
+            const content = await this.dataStore.read(uri);
+            isSome(content) &&
+              workspace.set(await this.parser.parse(uri, content));
+          }
+        },
+        onDidDelete: uri => {
+          this.matcher.isMatch(uri) && workspace.delete(uri);
+        },
+      }) ?? [];
+  }
+
+  match(uri: URI) {
+    return URI.isMarkdownFile(uri);
+  }
+
+  read(uri: URI): Promise<string | null> {
+    return this.dataStore.read(uri);
+  }
+
+  readAsMarkdown(uri: URI): Promise<string | null> {
+    return this.dataStore.read(uri);
+  }
+
+  async fetch(uri: URI) {
+    const content = await this.read(uri);
+    return isSome(content) ? this.parser.parse(uri, content) : null;
+  }
+
+  resolveLink(
+    workspace: FoamWorkspace,
+    resource: Resource,
+    link: ResourceLink
+  ) {
+    let targetUri: URI | undefined;
+    switch (link.type) {
+      case 'wikilink':
+        const definitionUri = resource.definitions.find(
+          def => def.label === link.slug
+        )?.url;
+        if (isSome(definitionUri)) {
+          const definedUri = URI.resolve(definitionUri, resource.uri);
+          targetUri =
+            workspace.find(definedUri, resource.uri)?.uri ??
+            URI.placeholder(definedUri.path);
+        } else {
+          targetUri =
+            workspace.find(link.slug, resource.uri)?.uri ??
+            URI.placeholder(link.slug);
+        }
+        break;
+
+      case 'link':
+        targetUri =
+          workspace.find(link.target, resource.uri)?.uri ??
+          URI.placeholder(URI.resolve(link.target, resource.uri).path);
+        break;
+    }
+    return targetUri;
+  }
+
+  dispose() {
+    this.disposables.forEach(d => d.dispose());
+  }
+}
 
 /**
  * Traverses all the children of the given node, extracts
@@ -60,7 +170,7 @@ const tagsPlugin: ParserPlugin = {
 const titlePlugin: ParserPlugin = {
   name: 'title',
   visit: (node, note) => {
-    if (note.title == null && node.type === 'heading' && node.depth === 1) {
+    if (note.title === '' && node.type === 'heading' && node.depth === 1) {
       note.title =
         ((node as Parent)!.children?.[0]?.value as string) || note.title;
     }
@@ -70,8 +180,8 @@ const titlePlugin: ParserPlugin = {
     note.title = props.title ?? note.title;
   },
   onDidVisitTree: (tree, note) => {
-    if (note.title == null) {
-      note.title = getBasename(note.uri);
+    if (note.title === '') {
+      note.title = URI.getBasename(note.uri);
     }
   },
 };
@@ -89,7 +199,7 @@ const wikilinkPlugin: ParserPlugin = {
     }
     if (node.type === 'link') {
       const targetUri = (node as any).url;
-      const uri = parseUri(note.uri, targetUri);
+      const uri = URI.resolve(targetUri, note.uri);
       if (uri.scheme !== 'file' || uri.path === note.uri.path) {
         return;
       }
@@ -134,7 +244,9 @@ const handleError = (
   );
 };
 
-export function createMarkdownParser(extraPlugins: ParserPlugin[]): NoteParser {
+export function createMarkdownParser(
+  extraPlugins: ParserPlugin[]
+): ResourceParser {
   const parser = unified()
     .use(markdownParse, { gfm: true })
     .use(frontmatterPlugin, ['yaml'])
@@ -156,8 +268,8 @@ export function createMarkdownParser(extraPlugins: ParserPlugin[]): NoteParser {
     }
   });
 
-  const foamParser: NoteParser = {
-    parse: (uri: URI, markdown: string): Note => {
+  const foamParser: ResourceParser = {
+    parse: (uri: URI, markdown: string): Resource => {
       Logger.debug('Parsing:', uri);
       markdown = plugins.reduce((acc, plugin) => {
         try {
@@ -170,11 +282,11 @@ export function createMarkdownParser(extraPlugins: ParserPlugin[]): NoteParser {
       const tree = parser.parse(markdown);
       const eol = detectNewline(markdown) || os.EOL;
 
-      var note: Note = {
+      var note: Resource = {
         uri: uri,
         type: 'note',
         properties: {},
-        title: null,
+        title: '',
         tags: new Set(),
         links: [],
         definitions: [],
@@ -204,7 +316,7 @@ export function createMarkdownParser(extraPlugins: ParserPlugin[]): NoteParser {
             // Give precendence to the title from the frontmatter if it exists
             note.title = note.properties.title ?? note.title;
             // Update the start position of the note by exluding the metadata
-            note.source.contentStart = createPos(
+            note.source.contentStart = Position.create(
               node.position!.end.line! + 2,
               0
             );
@@ -306,13 +418,13 @@ export function createMarkdownReferences(
         return null;
       }
 
-      const relativePath = computeRelativePath(noteUri, target.uri);
+      const relativePath = URI.relativePath(noteUri, target.uri);
       const pathToNote = includeExtension
         ? relativePath
         : dropExtension(relativePath);
 
       // [wiki-link-text]: path/to/file.md "Page title"
-      return { label: link.slug, url: pathToNote, title: getTitle(target) };
+      return { label: link.slug, url: pathToNote, title: target.title };
     })
     .filter(isSome)
     .sort();
@@ -324,7 +436,7 @@ export function createMarkdownReferences(
  * @returns Foam Position  (0-indexed)
  */
 const astPointToFoamPosition = (point: Point): Position => {
-  return createPos(point.line - 1, point.column - 1);
+  return Position.create(point.line - 1, point.column - 1);
 };
 
 /**
@@ -333,9 +445,13 @@ const astPointToFoamPosition = (point: Point): Position => {
  * @returns Foam Range  (0-indexed)
  */
 const astPositionToFoamRange = (pos: AstPosition): Range =>
-  createRange(
+  Range.create(
     pos.start.line - 1,
     pos.start.column - 1,
     pos.end.line - 1,
     pos.end.column - 1
   );
+
+const isWikilink = (link: ResourceLink): link is WikiLink => {
+  return link.type === 'wikilink';
+};

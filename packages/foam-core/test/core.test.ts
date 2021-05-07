@@ -1,13 +1,15 @@
 import path from 'path';
-import { NoteLinkDefinition, Note, Attachment } from '../src/model/note';
-import * as ranges from '../src/model/range';
-import { URI } from '../src/common/uri';
+import { FoamWorkspace } from '../src';
+import { NoteLinkDefinition, Resource } from '../src/model/note';
+import { IDataStore, Matcher } from '../src/services/datastore';
+import { MarkdownResourceProvider } from '../src/markdown-provider';
+import { Range } from '../src/model/range';
+import { URI } from '../src/model/uri';
 import { Logger } from '../src/utils/log';
-import { parseUri } from '../src/utils';
 
 Logger.setLevel('error');
 
-const position = ranges.create(0, 0, 0, 100);
+const position = Range.create(0, 0, 0, 100);
 
 const documentStart = position.start;
 const documentEnd = position.end;
@@ -20,11 +22,22 @@ const eol = '\n';
  */
 export const strToUri = URI.file;
 
-export const createAttachment = (params: { uri: string }): Attachment => {
-  return {
-    uri: strToUri(params.uri),
-    type: 'attachment',
-  };
+export const noOpDataStore = (): IDataStore => ({
+  read: _ => Promise.resolve(''),
+  list: _ => Promise.resolve([]),
+});
+
+export const createTestWorkspace = () => {
+  const workspace = new FoamWorkspace();
+  const matcher = new Matcher([URI.file('/')], ['**/*']);
+  const provider = new MarkdownResourceProvider(
+    matcher,
+    undefined,
+    undefined,
+    noOpDataStore()
+  );
+  workspace.registerProvider(provider);
+  return workspace;
 };
 
 export const createTestNote = (params: {
@@ -34,10 +47,10 @@ export const createTestNote = (params: {
   links?: Array<{ slug: string } | { to: string }>;
   text?: string;
   root?: URI;
-}): Note => {
+}): Resource => {
   const root = params.root ?? URI.file('/');
   return {
-    uri: parseUri(root, params.uri),
+    uri: URI.resolve(params.uri, root),
     type: 'note',
     properties: {},
     title: params.title ?? path.parse(strToUri(params.uri).path).base,
@@ -45,7 +58,7 @@ export const createTestNote = (params: {
     tags: new Set(),
     links: params.links
       ? params.links.map((link, index) => {
-          const range = ranges.create(
+          const range = Range.create(
             position.start.line + index,
             position.start.character,
             position.start.line + index,

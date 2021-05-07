@@ -643,6 +643,51 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "RobinKing",
+      "name": "Robin King",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1583193?v=4",
+      "profile": "http://robincn.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "dheepakg",
+      "name": "Dheepak ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4730170?v=4",
+      "profile": "http://twitter.com/deegovee",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "daniel-vera-g",
+      "name": "Daniel VG",
+      "avatar_url": "https://avatars.githubusercontent.com/u/28257108?v=4",
+      "profile": "https://github.com/daniel-vera-g",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "Barabazs",
+      "name": "Barabas",
+      "avatar_url": "https://avatars.githubusercontent.com/u/31799121?v=4",
+      "profile": "https://github.com/Barabazs",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "EngincanV",
+      "name": "Engincan VESKE",
+      "avatar_url": "https://avatars.githubusercontent.com/u/43685404?v=4",
+      "profile": "http://enginveske@gmail.com",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

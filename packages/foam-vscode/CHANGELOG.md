@@ -4,6 +4,45 @@ All notable changes to the "foam-vscode" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.13.2] - 2021-05-06
+
+Fixes and Improvements:
+
+- Fixed wikilink completion bug (#592 - thanks @RobinKing)
+- Added support for stylable tags (#598 - thanks @Barabazs)
+- Added "Create new note" command (#601 - thanks @movermeyer)
+- Fixed navigation from placeholder and orphan panel (#600)
+
+Internal:
+
+- Refactored data model representation of resources: `Resource` (#593)
+
+## [0.13.1] - 2021-04-21
+
+Fixes and Improvements:
+
+- fixed bug in Windows when running `Open Daily Note` command (#591 - Thanks @RobinKing)
+
+## [0.13.0] - 2021-04-19
+
+Features:
+
+- Wikilink completion (#554)
+
+Fixes and Improvements:
+
+- fixed link navigation on path with spaces (#542)
+- support for Chinese characters in tags (#567 - thanks @RobinKing)
+- added support for `FOAM_TITLE` in templates (#549 - thanks @movermeyer)
+- added configuration to enable/disable link navigation (#584)
+
+## [0.12.1] - 2021-04-05
+
+Fixes and Improvements:
+
+- Link decorations are now optional (#558)
+- Improved UX when creating notes from templates (#550 - thanks @movermeyer)
+
 ## [0.12.0] - 2021-03-22
 
 Features:

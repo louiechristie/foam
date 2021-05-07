@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import markdownItRegex from 'markdown-it-regex';
-import { Foam, FoamWorkspace, Logger } from 'foam-core';
+import { Foam, FoamWorkspace, Logger, URI } from 'foam-core';
 import { FoamFeature } from '../types';
+import fp from 'lodash/fp';
 
 const feature: FoamFeature = {
   activate: async (
@@ -11,8 +12,13 @@ const feature: FoamFeature = {
     const foam = await foamPromise;
 
     return {
-      extendMarkdownIt: (md: markdownit) =>
-        markdownItWithFoamLinks(md, foam.workspace),
+      extendMarkdownIt: (md: markdownit) => {
+        const markdownItExtends = fp.compose(
+          markdownItWithFoamLinks,
+          markdownItWithFoamTags
+        );
+        return markdownItExtends(md, foam.workspace);
+      },
     };
   },
 };
@@ -23,21 +29,16 @@ export const markdownItWithFoamLinks = (
 ) => {
   return md.use(markdownItRegex, {
     name: 'connect-wikilinks',
-    regex: /\[\[([^\[\]]+?)\]\]/,
+    regex: /\[\[([^[\]]+?)\]\]/,
     replace: (wikilink: string) => {
       try {
         const resource = workspace.find(wikilink);
         if (resource == null) {
           return getPlaceholderLink(wikilink);
         }
-        switch (resource.type) {
-          case 'note':
-            return `<a class='foam-note-link' title='${resource.title}' href='${resource.uri.fsPath}'>${wikilink}</a>`;
-          case 'attachment':
-            return `<a class='foam-attachment-link' title='attachment' href='${resource.uri.fsPath}'>${wikilink}</a>`;
-          case 'placeholder':
-            return getPlaceholderLink(wikilink);
-        }
+        return `<a class='foam-note-link' title='${
+          resource.title
+        }' href='${URI.toFsPath(resource.uri)}'>${wikilink}</a>`;
       } catch (e) {
         Logger.error(
           `Error while creating link for [[${wikilink}]] in Preview panel`,
@@ -51,5 +52,32 @@ export const markdownItWithFoamLinks = (
 
 const getPlaceholderLink = (content: string) =>
   `<a class='foam-placeholder-link' title="Link to non-existing resource" href="javascript:void(0);">${content}</a>`;
+
+export const markdownItWithFoamTags = (
+  md: markdownit,
+  workspace: FoamWorkspace
+) => {
+  return md.use(markdownItRegex, {
+    name: 'foam-tags',
+    regex: /(#\w+)/,
+    replace: (tag: string) => {
+      try {
+        const resource = workspace.find(tag);
+        if (resource == null) {
+          return getFoamTag(tag);
+        }
+      } catch (e) {
+        Logger.error(
+          `Error while creating link for ${tag} in Preview panel`,
+          e
+        );
+        return getFoamTag(tag);
+      }
+    },
+  });
+};
+
+const getFoamTag = (content: string) =>
+  `<span class='foam-tag'>${content}</span>`;
 
 export default feature;

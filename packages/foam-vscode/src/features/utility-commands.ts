@@ -1,23 +1,25 @@
 import * as vscode from 'vscode';
 import { FoamFeature } from '../types';
 import { commands } from 'vscode';
-import { createNoteFromPlacehoder, focusNote, isSome } from '../utils';
+import { createNoteFromPlaceholder, focusNote, isSome } from '../utils';
+import { URI } from 'foam-core';
+import { toVsCodeUri } from '../utils/vsc-utils';
 
 export const OPEN_COMMAND = {
   command: 'foam-vscode.open-resource',
   title: 'Foam: Open Resource',
 
-  execute: async (params: { resource: vscode.Uri }) => {
-    const { resource } = params;
-    switch (resource.scheme) {
+  execute: async (params: { uri: URI }) => {
+    const { uri } = params;
+    switch (uri.scheme) {
       case 'file':
-        return vscode.commands.executeCommand('vscode.open', resource);
+        return vscode.commands.executeCommand('vscode.open', toVsCodeUri(uri));
 
       case 'placeholder':
-        const newNote = await createNoteFromPlacehoder(resource);
+        const newNote = await createNoteFromPlaceholder(uri);
 
         if (isSome(newNote)) {
-          const title = resource.path.split('/').slice(-1);
+          const title = uri.path.split('/').slice(-1);
           const snippet = new vscode.SnippetString(
             '# ${1:' + title + '}\n\n$0'
           );
@@ -25,20 +27,13 @@ export const OPEN_COMMAND = {
           await vscode.window.activeTextEditor.insertSnippet(snippet);
         }
         return;
-
-      case 'attachment':
-        return vscode.window.showInformationMessage(
-          'Opening attachments is not supported yet'
-        );
     }
   },
 
-  asURI: (resource: vscode.Uri) =>
-    vscode.Uri.parse(
-      `command:${OPEN_COMMAND.command}?${encodeURIComponent(
-        JSON.stringify({ resource: resource })
-      )}`
-    ),
+  asURI: (uri: URI) =>
+    vscode.Uri.parse(`command:${OPEN_COMMAND.command}`).with({
+      query: encodeURIComponent(JSON.stringify({ uri: URI.create(uri) })),
+    }),
 };
 
 const feature: FoamFeature = {

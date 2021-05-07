@@ -2,27 +2,36 @@ import * as path from 'path';
 import { generateHeading } from '../../src/janitor';
 import { bootstrap } from '../../src/bootstrap';
 import { createConfigFromFolders } from '../../src/config';
-import { Note } from '../../src';
-import { URI } from '../../src/common/uri';
-import { FileDataStore } from '../../src/services/datastore';
+import { Resource } from '../../src/model/note';
+import { FileDataStore, Matcher } from '../../src/services/datastore';
 import { Logger } from '../../src/utils/log';
 import { FoamWorkspace } from '../../src/model/workspace';
-import { getBasename } from '../../src/utils/uri';
-import * as ranges from '../../src/model/range';
+import { URI } from '../../src/model/uri';
+import { Range } from '../../src/model/range';
+import { MarkdownResourceProvider } from '../../src';
 
 Logger.setLevel('error');
 
 describe('generateHeadings', () => {
   let _workspace: FoamWorkspace;
-  const findBySlug = (slug: string): Note => {
-    return _workspace.list().find(res => getBasename(res.uri) === slug) as Note;
+  const findBySlug = (slug: string): Resource => {
+    return _workspace
+      .list()
+      .find(res => URI.getBasename(res.uri) === slug) as Resource;
   };
 
   beforeAll(async () => {
     const config = createConfigFromFolders([
       URI.file(path.join(__dirname, '..', '__scaffold__')),
     ]);
-    const foam = await bootstrap(config, new FileDataStore(config));
+    const mdProvider = new MarkdownResourceProvider(
+      new Matcher(
+        config.workspaceFolders,
+        config.includeGlobs,
+        config.ignoreGlobs
+      )
+    );
+    const foam = await bootstrap(config, new FileDataStore(), [mdProvider]);
     _workspace = foam.workspace;
   });
 
@@ -32,7 +41,7 @@ describe('generateHeadings', () => {
       newText: `# File without Title
 
 `,
-      range: ranges.create(0, 0, 0, 0),
+      range: Range.create(0, 0, 0, 0),
     };
 
     const actual = generateHeading(note);
@@ -52,7 +61,7 @@ describe('generateHeadings', () => {
 
     const expected = {
       newText: '\n# File with only Frontmatter\n\n',
-      range: ranges.create(3, 0, 3, 0),
+      range: Range.create(3, 0, 3, 0),
     };
 
     const actual = generateHeading(note);

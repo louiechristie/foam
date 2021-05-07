@@ -5,16 +5,17 @@ import * as vscode from 'vscode';
 import path from 'path';
 import {
   URI,
-  Attachment,
   NoteLinkDefinition,
-  Note,
-  Placeholder,
-  parseUri,
-  ranges,
+  Resource,
+  Range,
+  FoamWorkspace,
+  Matcher,
+  MarkdownResourceProvider,
 } from 'foam-core';
 import { TextEncoder } from 'util';
+import { toVsCodeUri } from '../utils/vsc-utils';
 
-const position = ranges.create(0, 0, 0, 100);
+const position = Range.create(0, 0, 0, 100);
 
 const documentStart = position.start;
 const documentEnd = position.end;
@@ -27,18 +28,15 @@ const eol = '\n';
  */
 export const strToUri = URI.file;
 
-export const createPlaceholder = (params: { uri: string }): Placeholder => {
-  return {
-    uri: strToUri(params.uri),
-    type: 'placeholder',
-  };
-};
-
-export const createAttachment = (params: { uri: string }): Attachment => {
-  return {
-    uri: strToUri(params.uri),
-    type: 'attachment',
-  };
+export const createTestWorkspace = () => {
+  const workspace = new FoamWorkspace();
+  const matcher = new Matcher([URI.file('/')], ['**/*']);
+  const provider = new MarkdownResourceProvider(matcher, undefined, undefined, {
+    read: _ => Promise.resolve(''),
+    list: _ => Promise.resolve([]),
+  });
+  workspace.registerProvider(provider);
+  return workspace;
 };
 
 export const createTestNote = (params: {
@@ -48,10 +46,10 @@ export const createTestNote = (params: {
   links?: Array<{ slug: string } | { to: string }>;
   text?: string;
   root?: URI;
-}): Note => {
+}): Resource => {
   const root = params.root ?? URI.file('/');
   return {
-    uri: parseUri(root, params.uri),
+    uri: URI.resolve(params.uri, root),
     type: 'note',
     properties: {},
     title: params.title ?? path.parse(strToUri(params.uri).path).base,
@@ -59,7 +57,7 @@ export const createTestNote = (params: {
     tags: new Set(),
     links: params.links
       ? params.links.map((link, index) => {
-          const range = ranges.create(
+          const range = Range.create(
             position.start.line + index,
             position.start.character,
             position.start.line + index,
@@ -99,7 +97,7 @@ export const wait = (ms: number) =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 export const showInEditor = async (uri: URI) => {
-  const doc = await vscode.workspace.openTextDocument(uri);
+  const doc = await vscode.workspace.openTextDocument(toVsCodeUri(uri));
   const editor = await vscode.window.showTextDocument(doc);
   return { doc, editor };
 };
@@ -132,7 +130,7 @@ export const createFile = async (content: string, filepath?: string) => {
   return { uri, content, ...filenameComponents };
 };
 
-export const createNote = (r: Note) => {
+export const createNote = (r: Resource) => {
   let content = `# ${r.title}
 
   some content and ${r.links
@@ -143,7 +141,7 @@ export const createNote = (r: Note) => {
   last line.
 `;
   return vscode.workspace.fs.writeFile(
-    r.uri,
+    toVsCodeUri(r.uri),
     new TextEncoder().encode(content)
   );
 };

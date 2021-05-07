@@ -8,7 +8,7 @@
     "type": "git"
   },
   "homepage": "https://github.com/foambubble/foam",
-  "version": "0.12.0",
+  "version": "0.13.2",
   "license": "MIT",
   "publisher": "foam",
   "engines": {
@@ -28,7 +28,8 @@
     "onCommand:foam-vscode.copy-without-brackets",
     "onCommand:foam-vscode.show-graph",
     "onCommand:foam-vscode.create-new-template",
-    "onCommand:foam-vscode.create-note-from-template"
+    "onCommand:foam-vscode.create-note-from-template",
+    "onCommand:foam-vscode.create-note-from-default-template"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -162,6 +163,10 @@
         "title": "Foam: Create New Note From Template"
       },
       {
+        "command": "foam-vscode.create-note-from-default-template",
+        "title": "Foam: Create New Note"
+      },
+      {
         "command": "foam-vscode.open-resource",
         "title": "Foam: Open Resource"
       },
@@ -230,21 +235,28 @@
             "Disable wikilink definitions generation"
           ]
         },
+        "foam.links.navigation.enable": {
+          "description": "Enable navigation through links",
+          "type": "boolean",
+          "default": true
+        },
+        "foam.decorations.links.enable": {
+          "description": "Enable decorations for links",
+          "type": "boolean",
+          "default": false
+        },
         "foam.openDailyNote.onStartup": {
           "type": "boolean",
-          "scope": "resource",
           "default": false
         },
         "foam.openDailyNote.fileExtension": {
           "type": "string",
-          "scope": "resource",
           "default": "md"
         },
         "foam.openDailyNote.filenameFormat": {
           "type": "string",
           "default": "isoDate",
-          "markdownDescription": "Specifies how the daily note filename is formatted. See the [dateformat docs](https://www.npmjs.com/package/dateformat) for valid formats",
-          "scope": "resource"
+          "markdownDescription": "Specifies how the daily note filename is formatted. See the [dateformat docs](https://www.npmjs.com/package/dateformat) for valid formats"
         },
         "foam.openDailyNote.titleFormat": {
           "type": [
@@ -252,8 +264,7 @@
             "null"
           ],
           "default": null,
-          "markdownDescription": "Specifies how the daily note title is formatted. Will default to the filename format if set to null. See the [dateformat docs](https://www.npmjs.com/package/dateformat) for valid formats",
-          "scope": "resource"
+          "markdownDescription": "Specifies how the daily note title is formatted. Will default to the filename format if set to null. See the [dateformat docs](https://www.npmjs.com/package/dateformat) for valid formats"
         },
         "foam.openDailyNote.directory": {
           "type": [
@@ -268,8 +279,7 @@
             "array"
           ],
           "default": [],
-          "markdownDescription": "Specifies the list of glob patterns that will be excluded from the orphans report. To ignore the all the content of a given folder, use `**<folderName>/**/*`",
-          "scope": "resource"
+          "markdownDescription": "Specifies the list of glob patterns that will be excluded from the orphans report. To ignore the all the content of a given folder, use `**<folderName>/**/*`"
         },
         "foam.orphans.groupBy": {
           "type": [
@@ -284,16 +294,14 @@
             "Group by folder"
           ],
           "default": "folder",
-          "markdownDescription": "Group orphans report entries by.",
-          "scope": "resource"
+          "markdownDescription": "Group orphans report entries by."
         },
         "foam.placeholders.exclude": {
           "type": [
             "array"
           ],
           "default": [],
-          "markdownDescription": "Specifies the list of glob patterns that will be excluded from the placeholders report. To ignore the all the content of a given folder, use `**<folderName>/**/*`",
-          "scope": "resource"
+          "markdownDescription": "Specifies the list of glob patterns that will be excluded from the placeholders report. To ignore the all the content of a given folder, use `**<folderName>/**/*`"
         },
         "foam.placeholders.groupBy": {
           "type": [
@@ -308,8 +316,7 @@
             "Group by folder"
           ],
           "default": "folder",
-          "markdownDescription": "Group blank note report entries by.",
-          "scope": "resource"
+          "markdownDescription": "Group blank note report entries by."
         },
         "foam.dateSnippets.afterCompletion": {
           "type": "string",
@@ -388,7 +395,7 @@
   },
   "dependencies": {
     "dateformat": "^3.0.3",
-    "foam-core": "^0.12.0",
+    "foam-core": "^0.13.2",
     "gray-matter": "^4.0.2",
     "markdown-it-regex": "^0.2.0",
     "micromatch": "^4.0.2",

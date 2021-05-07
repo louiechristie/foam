@@ -1,14 +1,16 @@
 import { workspace, window } from 'vscode';
-import { URI, FoamWorkspace, IDataStore } from 'foam-core';
+import { URI, FoamGraph } from 'foam-core';
 import {
   cleanWorkspace,
   closeEditors,
   createNote,
   createTestNote,
+  createTestWorkspace,
 } from '../test/test-utils';
 import { BacklinksTreeDataProvider, BacklinkTreeItem } from './backlinks';
 import { ResourceTreeItem } from '../utils/grouped-resources-tree-data-provider';
 import { OPEN_COMMAND } from './utility-commands';
+import { toVsCodeUri } from '../utils/vsc-utils';
 
 describe('Backlinks panel', () => {
   beforeAll(async () => {
@@ -18,18 +20,13 @@ describe('Backlinks panel', () => {
     await createNote(noteC);
   });
   afterAll(async () => {
+    graph.dispose();
     ws.dispose();
     await cleanWorkspace();
   });
 
   const rootUri = workspace.workspaceFolders[0].uri;
-  const ws = new FoamWorkspace();
-  const dataStore = {
-    read: uri => {
-      return Promise.resolve('');
-    },
-    isMatch: uri => uri.path.endsWith('.md'),
-  } as IDataStore;
+  const ws = createTestWorkspace();
 
   const noteA = createTestNote({
     root: rootUri,
@@ -47,10 +44,10 @@ describe('Backlinks panel', () => {
   });
   ws.set(noteA)
     .set(noteB)
-    .set(noteC)
-    .resolveLinks(true);
+    .set(noteC);
+  const graph = FoamGraph.fromWorkspace(ws, true);
 
-  const provider = new BacklinksTreeDataProvider(ws, dataStore);
+  const provider = new BacklinksTreeDataProvider(ws, graph);
 
   beforeEach(async () => {
     await closeEditors();
@@ -64,8 +61,8 @@ describe('Backlinks panel', () => {
     expect(await provider.getChildren()).toEqual([]);
   });
   it.skip('targets active editor', async () => {
-    const docA = await workspace.openTextDocument(noteA.uri);
-    const docB = await workspace.openTextDocument(noteB.uri);
+    const docA = await workspace.openTextDocument(toVsCodeUri(noteA.uri));
+    const docB = await workspace.openTextDocument(toVsCodeUri(noteB.uri));
 
     await window.showTextDocument(docA);
     expect(provider.target).toEqual(noteA.uri);
@@ -99,7 +96,7 @@ describe('Backlinks panel', () => {
     const notes = (await provider.getChildren()) as ResourceTreeItem[];
     expect(notes[0].command).toMatchObject({
       command: OPEN_COMMAND.command,
-      arguments: [expect.objectContaining({ resource: noteB.uri })],
+      arguments: [expect.objectContaining({ uri: noteB.uri })],
     });
   });
   it('navigates to document with link selection if clicking on backlink', async () => {

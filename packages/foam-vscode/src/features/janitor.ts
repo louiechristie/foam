@@ -3,7 +3,6 @@ import {
   workspace,
   ExtensionContext,
   commands,
-  Range,
   ProgressLocation,
 } from 'vscode';
 import * as fs from 'fs';
@@ -13,15 +12,15 @@ import {
   generateLinkReferences,
   generateHeading,
   Foam,
-  Note,
-  ranges,
+  Resource,
+  Range,
+  URI,
 } from 'foam-core';
 
 import {
   getWikilinkDefinitionSetting,
   LinkReferenceDefinitionsSetting,
 } from '../settings';
-import { isNote } from '../utils';
 import { toVsCodePosition, toVsCodeRange } from '../utils/vsc-utils';
 
 const feature: FoamFeature = {
@@ -71,7 +70,9 @@ async function janitor(foam: Foam) {
 }
 
 async function runJanitor(foam: Foam) {
-  const notes: Note[] = foam.workspace.list().filter(isNote);
+  const notes: Resource[] = foam.workspace
+    .list()
+    .filter(r => URI.isMarkdownFile(r.uri));
 
   let updatedHeadingCount = 0;
   let updatedDefinitionListCount = 0;
@@ -88,11 +89,11 @@ async function runJanitor(foam: Foam) {
   );
 
   const dirtyNotes = notes.filter(note =>
-    dirtyEditorsFileName.includes(note.uri.fsPath)
+    dirtyEditorsFileName.includes(URI.toFsPath(note.uri))
   );
 
   const nonDirtyNotes = notes.filter(
-    note => !dirtyEditorsFileName.includes(note.uri.fsPath)
+    note => !dirtyEditorsFileName.includes(URI.toFsPath(note.uri))
   );
 
   const wikilinkSetting = getWikilinkDefinitionSetting();
@@ -128,7 +129,7 @@ async function runJanitor(foam: Foam) {
     text = definitions ? applyTextEdit(text, definitions) : text;
     text = heading ? applyTextEdit(text, heading) : text;
 
-    return fs.promises.writeFile(note.uri.fsPath, text);
+    return fs.promises.writeFile(URI.toFsPath(note.uri), text);
   });
 
   await Promise.all(fileWritePromises);
@@ -138,7 +139,7 @@ async function runJanitor(foam: Foam) {
   for (const doc of dirtyTextDocuments) {
     const editor = await window.showTextDocument(doc);
     const note = dirtyNotes.find(
-      n => n.uri.fsPath === editor.document.uri.fsPath
+      n => URI.toFsPath(n.uri) === editor.document.uri.fsPath
     )!;
 
     // Get edits
@@ -163,7 +164,7 @@ async function runJanitor(foam: Foam) {
           const start = definitions.range.start;
           const end = definitions.range.end;
 
-          const range = ranges.createFromPosition(start, end);
+          const range = Range.createFromPosition(start, end);
           editBuilder.replace(toVsCodeRange(range), definitions!.newText);
         }
 
